@@ -7,8 +7,9 @@ const {
 
 // --- EXPRESS SERVER ---
 const app = express();
+const PORT = process.env.PORT || 3000;
 app.get("/", (req, res) => res.send("Bot is running!"));
-app.listen(3000, () => console.log("Web server is running on port 3000"));
+app.listen(PORT, () => console.log(`Web server is running on port ${PORT}`));
 
 // --- DISCORD CLIENT ---
 const client = new Client({ 
@@ -20,6 +21,12 @@ const client = new Client({
         GatewayIntentBits.GuildMembers
     ]
 });
+
+// --- ERROR HANDLERS ---
+client.on('error', error => console.error('Discord client error:', error));
+client.on('warn', info => console.warn('Discord client warning:', info));
+client.on('shardError', error => console.error('Shard error:', error));
+process.on('unhandledRejection', error => console.error('Unhandled promise rejection:', error));
 
 // --- CONFIG ---
 const token = process.env.BOT_TOKEN;
@@ -43,8 +50,6 @@ const botMessagesFile = './botMessages.json';
 // Ensure files exist
 if (!fs.existsSync(birthdayFile)) fs.writeFileSync(birthdayFile, '[]');
 if (!fs.existsSync(botMessagesFile)) fs.writeFileSync(botMessagesFile, '{}');
-
-// Load botMessages.json
 let botMessages = JSON.parse(fs.readFileSync(botMessagesFile, 'utf-8'));
 
 // --- GAME ROLES ---
@@ -84,7 +89,8 @@ const games = [
 const games1 = games.slice(0, Math.ceil(games.length / 2));
 const games2 = games.slice(Math.ceil(games.length / 2));
 
-// --- Send reaction roles function ---
+// --- FUNCTIONS ---
+// Send reaction roles
 async function sendReactionRoles(channel, gamesArray, key) {
     let msg;
     if (botMessages[key]) {
@@ -97,16 +103,10 @@ async function sendReactionRoles(channel, gamesArray, key) {
 
     if (!msg) {
         let description = '**🎮 React to get your game role!**\n\n';
-
         for (const game of gamesArray) {
             const emoji = channel.guild.emojis.cache.get(game.emoteId);
-            if (emoji) {
-                description += `${emoji.toString()} - **${game.name}**\n`;
-            } else {
-                description += `❓ - **${game.name}** (emoji not found)\n`;
-            }
+            description += emoji ? `${emoji} - **${game.name}**\n` : `❓ - **${game.name}** (emoji not found)\n`;
         }
-
         msg = await channel.send(description);
         botMessages[key] = msg.id;
         fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
@@ -118,7 +118,7 @@ async function sendReactionRoles(channel, gamesArray, key) {
     }
 }
 
-// --- SEND VERIFY BUTTON ---
+// Send verify button
 async function sendVerifyMessage(channel, key) {
     if (botMessages[key]) {
         try { const existingMsg = await channel.messages.fetch(botMessages[key]); if (existingMsg) return; } catch {}
@@ -130,7 +130,7 @@ async function sendVerifyMessage(channel, key) {
     fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
 }
 
-// --- SEND RULES MESSAGE ---
+// Send rules
 async function sendRulesMessage(channel, key) {
     if (botMessages[key]) {
         try { const existingMsg = await channel.messages.fetch(botMessages[key]); if (existingMsg) return; } catch {}
@@ -164,7 +164,6 @@ client.on('guildMemberAdd', member => {
 // --- ON READY ---
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
-
     const rrChannel = await client.channels.fetch(reactionRolesChannelId);
     const verifiedChannel = await client.channels.fetch(verifiedChannelId);
     const rulesChannel = await client.channels.fetch(rulesChannelId);
@@ -202,30 +201,14 @@ client.on(Events.InteractionCreate, async interaction => {
         try {
             const member = interaction.guild.members.cache.get(interaction.user.id);
             const role = interaction.guild.roles.cache.get(verifiedRoleId);
-            if (!member || !role) {
-                return interaction.reply({
-                    content: 'Something went wrong.',
-                    flags: InteractionResponseFlags.Ephemeral
-                });
-            }
+            if (!member || !role) return interaction.reply({ content: 'Something went wrong.', flags: InteractionResponseFlags.Ephemeral });
             if (member.roles.cache.has(role.id)) {
-                await interaction.reply({
-                    content: 'You are already verified!',
-                    flags: InteractionResponseFlags.Ephemeral
-                });
+                await interaction.reply({ content: 'You are already verified!', flags: InteractionResponseFlags.Ephemeral });
             } else {
                 await member.roles.add(role);
-                await interaction.reply({
-                    content: 'You are now verified! 🎉',
-                    flags: InteractionResponseFlags.Ephemeral
-                });
+                await interaction.reply({ content: 'You are now verified! 🎉', flags: InteractionResponseFlags.Ephemeral });
             }
-        } catch {
-            interaction.reply({
-                content: 'Error assigning role.',
-                flags: InteractionResponseFlags.Ephemeral
-            });
-        }
+        } catch { interaction.reply({ content: 'Error assigning role.', flags: InteractionResponseFlags.Ephemeral }); }
     }
 });
 
@@ -288,6 +271,7 @@ client.on('messageCreate', async message => {
 
 // --- LOGIN ---
 client.login(token);
+
 
 
 
