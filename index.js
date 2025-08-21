@@ -84,16 +84,29 @@ const games = [
 const games1 = games.slice(0, Math.ceil(games.length / 2));
 const games2 = games.slice(Math.ceil(games.length / 2));
 
-// --- SEND REACTION ROLES ---
+// --- Send reaction roles function ---
 async function sendReactionRoles(channel, gamesArray, key) {
     let msg;
     if (botMessages[key]) {
-        try { msg = await channel.messages.fetch(botMessages[key]); } catch {}
+        try { 
+            msg = await channel.messages.fetch(botMessages[key]); 
+        } catch {
+            console.log(`Previous reaction roles message not found for ${key}.`);
+        }
     }
 
     if (!msg) {
         let description = '**🎮 React to get your game role!**\n\n';
-        gamesArray.forEach(game => description += `<:${game.emoteId}> - **${game.name}**\n`);
+
+        for (const game of gamesArray) {
+            const emoji = channel.guild.emojis.cache.get(game.emoteId);
+            if (emoji) {
+                description += `${emoji.toString()} - **${game.name}**\n`;
+            } else {
+                description += `❓ - **${game.name}** (emoji not found)\n`;
+            }
+        }
+
         msg = await channel.send(description);
         botMessages[key] = msg.id;
         fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
@@ -259,6 +272,7 @@ client.on('messageCreate', async message => {
 
 // --- LOGIN ---
 client.login(token);
+
 
 
 
