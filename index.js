@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const fs = require('fs');
 const { 
-    Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder
+    Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder, InteractionResponseFlags
 } = require('discord.js');
 
 // --- EXPRESS SERVER ---
@@ -202,14 +202,30 @@ client.on(Events.InteractionCreate, async interaction => {
         try {
             const member = interaction.guild.members.cache.get(interaction.user.id);
             const role = interaction.guild.roles.cache.get(verifiedRoleId);
-            if (!member || !role) return interaction.reply({ content: 'Something went wrong.', ephemeral: true });
+            if (!member || !role) {
+                return interaction.reply({
+                    content: 'Something went wrong.',
+                    flags: InteractionResponseFlags.Ephemeral
+                });
+            }
             if (member.roles.cache.has(role.id)) {
-                await interaction.reply({ content: 'You are already verified!', ephemeral: true });
+                await interaction.reply({
+                    content: 'You are already verified!',
+                    flags: InteractionResponseFlags.Ephemeral
+                });
             } else {
                 await member.roles.add(role);
-                await interaction.reply({ content: 'You are now verified! 🎉', ephemeral: true });
+                await interaction.reply({
+                    content: 'You are now verified! 🎉',
+                    flags: InteractionResponseFlags.Ephemeral
+                });
             }
-        } catch { interaction.reply({ content: 'Error assigning role.', ephemeral: true }); }
+        } catch {
+            interaction.reply({
+                content: 'Error assigning role.',
+                flags: InteractionResponseFlags.Ephemeral
+            });
+        }
     }
 });
 
@@ -272,6 +288,7 @@ client.on('messageCreate', async message => {
 
 // --- LOGIN ---
 client.login(token);
+
 
 
 
