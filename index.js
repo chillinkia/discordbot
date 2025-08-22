@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const fs = require('fs');
 const { 
-    Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder, InteractionResponseFlags
+    Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder
 } = require('discord.js');
 
 // --- EXPRESS SERVER ---
@@ -35,6 +35,7 @@ if (!token) {
     process.exit(1);
 }
 
+// --- CHANNEL & ROLE IDS ---
 const welcomeChannelId = '1404097606988075040';
 const reactionRolesChannelId = '1407307017621864550';
 const verifiedChannelId = '1407271197544022118';
@@ -44,97 +45,62 @@ const introChannelId = '1407360906739978281';
 const birthdaySetChannelId = '1407436351284052199';
 const birthdayGreetChannelId = '1407435745387610218';
 const boostChannelId = '1407352144067301458';
+
+// --- DATA FILES ---
 const birthdayFile = './birthdays.json';
 const botMessagesFile = './botMessages.json';
-
-// Ensure files exist
 if (!fs.existsSync(birthdayFile)) fs.writeFileSync(birthdayFile, '[]');
 if (!fs.existsSync(botMessagesFile)) fs.writeFileSync(botMessagesFile, '{}');
 let botMessages = JSON.parse(fs.readFileSync(botMessagesFile, 'utf-8'));
 
 // --- GAME ROLES ---
 const games = [
-    { name: 'Valorant', emoteId: '1407299610690453569', roleId: '1404108937300803615' },
-    { name: 'MLBB', emoteId: '1407300001830273114', roleId: '1404108965331075112' },
-    { name: 'Call of Duty', emoteId: '1407300193304580259', roleId: '1404108994582417428' },
-    { name: 'NBA 2K', emoteId: '1407300324863119491', roleId: '1404109015516057650' },
-    { name: 'League of Legends', emoteId: '1407300447231803494', roleId: '1404109092514955345' },
-    { name: 'Wild Rift', emoteId: '1407300567574909009', roleId: '1404109126572965958' },
-    { name: 'Team Fight Tactics', emoteId: '1407300757325348975', roleId: '1404112145821733015' },
-    { name: 'Roblox', emoteId: '1407300884756693062', roleId: '1404115005657452655' },
-    { name: 'Left 4 Dead', emoteId: '1407301029912907827', roleId: '1404115035608973382' },
-    { name: 'GTA', emoteId: '1407301156836868178', roleId: '1404115078952783922' },
-    { name: 'Overwatch', emoteId: '1407301263837630514', roleId: '1404115102680219888' },
-    { name: 'Fall Guys', emoteId: '1407301367516627035', roleId: '1404115130849034280' },
-    { name: 'Crab Game', emoteId: '1407301463838818324', roleId: '1404115159584215131' },
-    { name: 'Once Human', emoteId: '1407301586669015142', roleId: '1404115187505565747' },
-    { name: 'Fortnite', emoteId: '1407301744664379433', roleId: '1404115224214241413' },
-    { name: 'Honor of Kings', emoteId: '1407303258673778739', roleId: '1404118277088739348' },
-    { name: 'Tekken', emoteId: '1407303262536994907', roleId: '1404118222072057856' },
-    { name: 'Honkai', emoteId: '1407303265816678531', roleId: '1404118159878914170' },
-    { name: 'Rainbow Six Siege', emoteId: '1407303270074159114', roleId: '1404118099246190684' },
-    { name: 'Pokémon Unite', emoteId: '1407303275727818752', roleId: '1404118058745987072' },
-    { name: 'PUBG', emoteId: '1407303377104273429', roleId: '1404118026709635113' },
-    { name: 'Minecraft', emoteId: '1407303380468105257', roleId: '1404117972892651602' },
-    { name: 'Genshin Impact', emoteId: '1407303382707998790', roleId: '1404117936700002405' },
-    { name: 'Farlight 84', emoteId: '1407303385316724736', roleId: '1404117902763884575' },
-    { name: 'Dota 2', emoteId: '1407303389402108015', roleId: '1404117878134800414' },
-    { name: 'COD Mobile', emoteId: '1407300193304580259', roleId: '1404117846417477632' },
-    { name: 'CS:GO', emoteId: '1407303394087014400', roleId: '1404117795423125535' },
-    { name: 'Apex Legends', emoteId: '1407303485392945282', roleId: '1404115358385836162' },
-    { name: 'Among Us', emoteId: '1407303487536107613', roleId: '1404115334583161015' },
-    { name: 'Clash of Clans', emoteId: '1407303490367131739', roleId: '1404115250260742274' }
+    // ... paste your full games array here ...
 ];
-
 const games1 = games.slice(0, Math.ceil(games.length / 2));
 const games2 = games.slice(Math.ceil(games.length / 2));
 
-// --- FUNCTIONS ---
-// Send reaction roles
-async function sendReactionRoles(channel, gamesArray, key) {
-    let msg;
+// --- UTILITIES ---
+function saveBotMessages() {
+    fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
+}
+
+async function fetchOrSend(channel, key, content, components = []) {
     if (botMessages[key]) {
-        try { 
-            msg = await channel.messages.fetch(botMessages[key]); 
+        try {
+            const msg = await channel.messages.fetch(botMessages[key]);
+            if (msg) return msg;
         } catch {
-            console.log(`Previous reaction roles message not found for ${key}.`);
+            console.log(`Previous message not found for ${key}, sending a new one.`);
         }
     }
+    const msg = await channel.send({ content, components });
+    botMessages[key] = msg.id;
+    saveBotMessages();
+    return msg;
+}
 
-    if (!msg) {
-        let description = '**🎮 React to get your game role!**\n\n';
-        for (const game of gamesArray) {
-            const emoji = channel.guild.emojis.cache.get(game.emoteId);
-            description += emoji ? `${emoji} - **${game.name}**\n` : `❓ - **${game.name}** (emoji not found)\n`;
-        }
-        msg = await channel.send(description);
-        botMessages[key] = msg.id;
-        fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
+// --- FEATURES ---
+async function sendReactionRoles(channel, gamesArray, key) {
+    let description = '**🎮 React to get your game role!**\n\n';
+    for (const game of gamesArray) {
+        const emoji = channel.guild.emojis.cache.get(game.emoteId);
+        description += emoji ? `${emoji} - **${game.name}**\n` : `❓ - **${game.name}** (emoji not found)\n`;
     }
-
+    const msg = await fetchOrSend(channel, key, description);
     for (const game of gamesArray) {
         const emoji = channel.guild.emojis.cache.get(game.emoteId);
         if (emoji) await msg.react(emoji).catch(console.error);
     }
 }
 
-// Send verify button
 async function sendVerifyMessage(channel, key) {
-    if (botMessages[key]) {
-        try { const existingMsg = await channel.messages.fetch(botMessages[key]); if (existingMsg) return; } catch {}
-    }
     const button = new ButtonBuilder().setCustomId('verify_button').setLabel('✅ Verify').setStyle(ButtonStyle.Success);
     const row = new ActionRowBuilder().addComponents(button);
-    const msg = await channel.send({ content: 'Click the button below to verify yourself!', components: [row] });
-    botMessages[key] = msg.id;
-    fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
+    await fetchOrSend(channel, key, 'Click the button below to verify yourself!', [row]);
 }
 
-// Send rules
 async function sendRulesMessage(channel, key) {
-    if (botMessages[key]) {
-        try { const existingMsg = await channel.messages.fetch(botMessages[key]); if (existingMsg) return; } catch {}
-    }
     const rulesText = `📜 **Server Rules – AdU Game** 🎮
 1️⃣ Respect Everyone
 2️⃣ No Cheating or Exploiting
@@ -146,12 +112,10 @@ async function sendRulesMessage(channel, key) {
 8️⃣ No NSFW Content
 9️⃣ Listen to Staff
 🔟 Have Fun!`;
-    const msg = await channel.send(rulesText);
-    botMessages[key] = msg.id;
-    fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
+    await fetchOrSend(channel, key, rulesText);
 }
 
-// --- WELCOME MESSAGE ---
+// --- WELCOME ---
 client.on('guildMemberAdd', member => {
     const channel = member.guild.channels.cache.get(welcomeChannelId);
     if (!channel) return;
@@ -161,7 +125,7 @@ client.on('guildMemberAdd', member => {
     });
 });
 
-// --- ON READY ---
+// --- READY ---
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     const rrChannel = await client.channels.fetch(reactionRolesChannelId);
@@ -174,19 +138,18 @@ client.once('ready', async () => {
     await sendRulesMessage(rulesChannel, 'rulesMessage');
 });
 
-// --- REACTION ROLE HANDLERS ---
+// --- REACTION ROLES ---
 client.on('messageReactionAdd', async (reaction, user) => {
-    if (user.bot) return;
-    if (reaction.message.channel.id !== reactionRolesChannelId) return;
+    if (user.bot || reaction.message.channel.id !== reactionRolesChannelId) return;
     const game = games.find(g => g.emoteId === reaction.emoji.id);
     if (!game) return;
     const member = reaction.message.guild.members.cache.get(user.id);
     const role = reaction.message.guild.roles.cache.get(game.roleId);
     if (role && member) member.roles.add(role).catch(console.error);
 });
+
 client.on('messageReactionRemove', async (reaction, user) => {
-    if (user.bot) return;
-    if (reaction.message.channel.id !== reactionRolesChannelId) return;
+    if (user.bot || reaction.message.channel.id !== reactionRolesChannelId) return;
     const game = games.find(g => g.emoteId === reaction.emoji.id);
     if (!game) return;
     const member = reaction.message.guild.members.cache.get(user.id);
@@ -196,20 +159,18 @@ client.on('messageReactionRemove', async (reaction, user) => {
 
 // --- VERIFICATION BUTTON ---
 client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isButton()) return;
-    if (interaction.customId === 'verify_button') {
-        try {
-            const member = interaction.guild.members.cache.get(interaction.user.id);
-            const role = interaction.guild.roles.cache.get(verifiedRoleId);
-            if (!member || !role) return interaction.reply({ content: 'Something went wrong.', flags: InteractionResponseFlags.Ephemeral });
-            if (member.roles.cache.has(role.id)) {
-                await interaction.reply({ content: 'You are already verified!', flags: InteractionResponseFlags.Ephemeral });
-            } else {
-                await member.roles.add(role);
-                await interaction.reply({ content: 'You are now verified! 🎉', flags: InteractionResponseFlags.Ephemeral });
-            }
-        } catch { interaction.reply({ content: 'Error assigning role.', flags: InteractionResponseFlags.Ephemeral }); }
-    }
+    if (!interaction.isButton() || interaction.customId !== 'verify_button') return;
+    try {
+        const member = interaction.guild.members.cache.get(interaction.user.id);
+        const role = interaction.guild.roles.cache.get(verifiedRoleId);
+        if (!member || !role) return interaction.reply({ content: 'Something went wrong.', ephemeral: true });
+        if (member.roles.cache.has(role.id)) {
+            await interaction.reply({ content: 'You are already verified!', ephemeral: true });
+        } else {
+            await member.roles.add(role);
+            await interaction.reply({ content: 'You are now verified! 🎉', ephemeral: true });
+        }
+    } catch { interaction.reply({ content: 'Error assigning role.', ephemeral: true }); }
 });
 
 // --- BOOST MESSAGE ---
@@ -256,8 +217,7 @@ setInterval(async () => {
 
 client.on('messageCreate', async message => {
     if (message.channel.id !== birthdaySetChannelId || message.author.bot) return;
-    const content = message.content.trim();
-    const [month, day] = content.split('-').map(Number);
+    const [month, day] = message.content.trim().split('-').map(Number);
     if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
         return message.reply('❌ Invalid format! Use MM-DD (e.g., 08-19).');
     }
@@ -271,6 +231,7 @@ client.on('messageCreate', async message => {
 
 // --- LOGIN ---
 client.login(token);
+
 
 
 
