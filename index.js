@@ -253,7 +253,10 @@ client.on('messageCreate', async message => {
 });
 
 // --- LOGIN ---
+console.log("Token from env:", process.env.BOT_TOKEN ? "[REDACTED]" : "NOT FOUND");
+console.log("Token length:", process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : "0");
 client.login(token);
+
 
 
 
