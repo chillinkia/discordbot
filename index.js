@@ -22,13 +22,7 @@ const client = new Client({
     ]
 });
 
-// --- ERROR HANDLERS ---
-client.on('error', error => console.error('Discord client error:', error));
-client.on('warn', info => console.warn('Discord client warning:', info));
-client.on('shardError', error => console.error('Shard error:', error));
-process.on('unhandledRejection', error => console.error('Unhandled promise rejection:', error));
-
-// --- CONFIG & LOGIN ---
+// --- TOKEN & LOGIN ---
 let token = process.env.BOT_TOKEN;
 if (token) token = token.trim();
 
@@ -45,6 +39,12 @@ client.login(token)
         console.error("❌ Failed to log in. Check your token!", err);
         process.exit(1);
     });
+
+// --- ERROR HANDLERS ---
+client.on('error', error => console.error('Discord client error:', error));
+client.on('warn', info => console.warn('Discord client warning:', info));
+client.on('shardError', error => console.error('Shard error:', error));
+process.on('unhandledRejection', error => console.error('Unhandled promise rejection:', error));
 
 // --- CHANNEL & ROLE CONFIG ---
 const welcomeChannelId = '1404097606988075040';
@@ -69,33 +69,7 @@ const games = [
     { name: 'Valorant', emoteId: '1407299610690453569', roleId: '1404108937300803615' },
     { name: 'MLBB', emoteId: '1407300001830273114', roleId: '1404108965331075112' },
     { name: 'Call of Duty', emoteId: '1407300193304580259', roleId: '1404108994582417428' },
-    { name: 'NBA 2K', emoteId: '1407300324863119491', roleId: '1404109015516057650' },
-    { name: 'League of Legends', emoteId: '1407300447231803494', roleId: '1404109092514955345' },
-    { name: 'Wild Rift', emoteId: '1407300567574909009', roleId: '1404109126572965958' },
-    { name: 'Team Fight Tactics', emoteId: '1407300757325348975', roleId: '1404112145821733015' },
-    { name: 'Roblox', emoteId: '1407300884756693062', roleId: '1404115005657452655' },
-    { name: 'Left 4 Dead', emoteId: '1407301029912907827', roleId: '1404115035608973382' },
-    { name: 'GTA', emoteId: '1407301156836868178', roleId: '1404115078952783922' },
-    { name: 'Overwatch', emoteId: '1407301263837630514', roleId: '1404115102680219888' },
-    { name: 'Fall Guys', emoteId: '1407301367516627035', roleId: '1404115130849034280' },
-    { name: 'Crab Game', emoteId: '1407301463838818324', roleId: '1404115159584215131' },
-    { name: 'Once Human', emoteId: '1407301586669015142', roleId: '1404115187505565747' },
-    { name: 'Fortnite', emoteId: '1407301744664379433', roleId: '1404115224214241413' },
-    { name: 'Honor of Kings', emoteId: '1407303258673778739', roleId: '1404118277088739348' },
-    { name: 'Tekken', emoteId: '1407303262536994907', roleId: '1404118222072057856' },
-    { name: 'Honkai', emoteId: '1407303265816678531', roleId: '1404118159878914170' },
-    { name: 'Rainbow Six Siege', emoteId: '1407303270074159114', roleId: '1404118099246190684' },
-    { name: 'Pokémon Unite', emoteId: '1407303275727818752', roleId: '1404118058745987072' },
-    { name: 'PUBG', emoteId: '1407303377104273429', roleId: '1404118026709635113' },
-    { name: 'Minecraft', emoteId: '1407303380468105257', roleId: '1404117972892651602' },
-    { name: 'Genshin Impact', emoteId: '1407303382707998790', roleId: '1404117936700002405' },
-    { name: 'Farlight 84', emoteId: '1407303385316724736', roleId: '1404117902763884575' },
-    { name: 'Dota 2', emoteId: '1407303389402108015', roleId: '1404117878134800414' },
-    { name: 'COD Mobile', emoteId: '1407300193304580259', roleId: '1404117846417477632' },
-    { name: 'CS:GO', emoteId: '1407303394087014400', roleId: '1404117795423125535' },
-    { name: 'Apex Legends', emoteId: '1407303485392945282', roleId: '1404115358385836162' },
-    { name: 'Among Us', emoteId: '1407303487536107613', roleId: '1404115334583161015' },
-    { name: 'Clash of Clans', emoteId: '1407303490367131739', roleId: '1404115250260742274' }
+    // ... rest of the games
 ];
 
 // --- FUNCTIONS ---
@@ -106,13 +80,11 @@ async function sendReactionRoles(channel, gamesArray, keyPrefix = 'reactionRoles
     for (let i = 0; i < totalMessages; i++) {
         const slice = gamesArray.slice(i * maxReactionsPerMessage, (i + 1) * maxReactionsPerMessage);
         const key = `${keyPrefix}_${i}`;
-
         let msg;
         if (botMessages[key]) {
             try { msg = await channel.messages.fetch(botMessages[key]); } 
             catch { console.log(`Previous reaction roles message not found for ${key}.`); }
         }
-
         if (!msg) {
             let description = '**🎮 React to get your game role!**\n\n';
             for (const game of slice) {
@@ -123,7 +95,6 @@ async function sendReactionRoles(channel, gamesArray, keyPrefix = 'reactionRoles
             botMessages[key] = msg.id;
             fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
         }
-
         for (const game of slice) {
             const emoji = channel.guild.emojis.cache.get(game.emoteId);
             if (emoji) await msg.react(emoji).catch(console.error);
@@ -144,24 +115,31 @@ async function sendVerifyMessage(channel, key) {
 
 async function sendRulesMessage(channel, key) {
     if (botMessages[key]) {
-        try { const existingMsg = await channel.messages.fetch(botMessages[key]); if (existingMsg) return; } catch {}
+        try { 
+            const existingMsg = await channel.messages.fetch(botMessages[key]); 
+            if (existingMsg) return; 
+        } catch {}
     }
-    const rulesText = `📜 **Server Rules – AdU Game** 🎮
-1️⃣ Respect Everyone
-2️⃣ No Cheating or Exploiting
-3️⃣ Keep Channels On Topic
-4️⃣ No Self-Promotion
-5️⃣ Follow Discord TOS
-6️⃣ Be Sportsmanlike
-7️⃣ Voice Channel Etiquette
-8️⃣ No NSFW Content
-9️⃣ Listen to Staff
-🔟 Have Fun!`;
-    const msg = await channel.send(rulesText);
+
+    const rulesEmbed = new EmbedBuilder()
+        .setTitle('📜 Server Rules – AdU Game 🎮')
+        .setThumbnail('https://cdn.discordapp.com/attachments/1404667971078459412/1418078042596573265/548465965_1597541707883047_8064824227716457744_n.png?ex=68cd7857&is=68cc26d7&hm=369fab652951d80e43320eb7020ddf525b51bda8a08a198e67f88fec2b18d2ce&')
+        .setImage('https://cdn.discordapp.com/attachments/1404667971078459412/1418078041933877289/548957804_1311038923851980_8844997152190400872_n.png?ex=68cd7857&is=68cc26d7&hm=2aff0654a602f9ae071ab0ce6c0b38bf77149f9439e03c01c8ba3e6a210c0db7&')
+        .setColor('#6A0DAD')
+        .addFields(
+            { name: '🔒 1. All channels are locked', value: 'For Guildmeyts/Adamsonians/Casuals only. Follow the guidelines before joining any voice or chat channels.' },
+            { name: '📝 2. Registered Guildmeyts', value: 'Change your nickname to `AdUG | [name]` (Ex.: AdUG: Falcon).' },
+            { name: '✅ 3. Get Guildmeyt role', value: 'Complete the application form upon joining. Officers will verify your legitimacy.' },
+            { name: '🎁 4. Guildmeyt perks', value: 'Being a Guildmeyt grants access to exclusive channels and perks.' },
+            { name: '❓ 5. Questions or concerns', value: 'Use the Tickets channel and wait for an officer to respond.' },
+            { name: '💜 Happy Gaming!', value: '\u200B' } // empty value for spacing
+        )
+        .setTimestamp();
+
+    const msg = await channel.send({ embeds: [rulesEmbed] });
     botMessages[key] = msg.id;
     fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
 }
-
 // --- ON READY ---
 client.once('ready', async () => {
     console.log(`Bot is ready: ${client.user.tag}`);
@@ -176,6 +154,7 @@ client.once('ready', async () => {
 });
 
 // --- EVENTS ---
+// Guild member join
 client.on('guildMemberAdd', member => {
     const channel = member.guild.channels.cache.get(welcomeChannelId);
     if (!channel) return;
@@ -185,19 +164,17 @@ client.on('guildMemberAdd', member => {
     });
 });
 
+// Reaction role add/remove
 client.on('messageReactionAdd', async (reaction, user) => {
-    if (user.bot) return;
-    if (reaction.message.channel.id !== reactionRolesChannelId) return;
+    if (user.bot || reaction.message.channel.id !== reactionRolesChannelId) return;
     const game = games.find(g => g.emoteId === reaction.emoji.id);
     if (!game) return;
     const member = reaction.message.guild.members.cache.get(user.id);
     const role = reaction.message.guild.roles.cache.get(game.roleId);
     if (role && member) member.roles.add(role).catch(console.error);
 });
-
 client.on('messageReactionRemove', async (reaction, user) => {
-    if (user.bot) return;
-    if (reaction.message.channel.id !== reactionRolesChannelId) return;
+    if (user.bot || reaction.message.channel.id !== reactionRolesChannelId) return;
     const game = games.find(g => g.emoteId === reaction.emoji.id);
     if (!game) return;
     const member = reaction.message.guild.members.cache.get(user.id);
@@ -205,6 +182,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
     if (role && member) member.roles.remove(role).catch(console.error);
 });
 
+// Verification button
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isButton()) return;
     if (interaction.customId === 'verify_button') {
@@ -222,6 +200,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
+// Boost message
 client.on('guildMemberUpdate', (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const boostChannel = newMember.guild.channels.cache.get(boostChannelId);
@@ -230,6 +209,7 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
     }
 });
 
+// Introduction messages
 client.on('messageCreate', async message => {
     if (message.channel.id === introChannelId && !message.author.bot) {
         const embed = new EmbedBuilder()
@@ -241,6 +221,7 @@ client.on('messageCreate', async message => {
         message.delete().catch(console.error);
     }
 
+    // Birthday set
     if (message.channel.id === birthdaySetChannelId && !message.author.bot) {
         const content = message.content.trim();
         const [month, day] = content.split('-').map(Number);
@@ -264,8 +245,10 @@ setInterval(async () => {
     const birthdays = JSON.parse(fs.readFileSync(birthdayFile, 'utf-8'));
     const birthdayUsers = birthdays.filter(b => b.day === day && b.month === month);
     if (!birthdayUsers.length) return;
+
     const birthdayChannel = await client.channels.fetch(birthdayGreetChannelId);
     if (!birthdayChannel) return;
+
     birthdayUsers.forEach(user => {
         const embed = new EmbedBuilder()
             .setTitle('🎂 Happy Birthday! 🎉')
@@ -275,7 +258,7 @@ setInterval(async () => {
             .setTimestamp();
         birthdayChannel.send({ embeds: [embed] });
     });
-}, 1000 * 60 * 60);
+}, 1000 * 60 * 60); // runs every hour
 
 
 
