@@ -5,7 +5,7 @@ const fs = require('fs');
 // =============================
 // CONFIG (replace with your IDs)
 // =============================
-const TOKEN = "MTQwNzI3NTY4NTc1OTY4MDUxMg.GRLdG_.yjJkGJYR4b6vLBiHFAFx2nbqJZQeY9LaC9enYA"; // <-- paste token here
+const TOKEN = "MTQwNzI3NTY4NTc1OTY4MDUxMg.GKowcw.FiyfaAyBvRbOupdAVcpW7G9Er2jv87WoK5-pZA"; //
 const GUILD_ID = "1404097287348682842"; 
 const RULES_CHANNEL_ID = "1404104982638104789"; 
 const VERIFY_CHANNEL_ID = "1407271197544022118"; 
@@ -195,6 +195,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 // START BOT
 // =============================
 client.login(TOKEN);
+
 
 
 
