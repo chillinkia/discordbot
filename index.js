@@ -69,7 +69,33 @@ const games = [
     { name: 'Valorant', emoteId: '1407299610690453569', roleId: '1404108937300803615' },
     { name: 'MLBB', emoteId: '1407300001830273114', roleId: '1404108965331075112' },
     { name: 'Call of Duty', emoteId: '1407300193304580259', roleId: '1404108994582417428' },
-    // ... rest of the games
+    { name: 'NBA 2K', emoteId: '1407300324863119491', roleId: '1404109015516057650' },
+    { name: 'League of Legends', emoteId: '1407300447231803494', roleId: '1404109092514955345' },
+    { name: 'Wild Rift', emoteId: '1407300567574909009', roleId: '1404109126572965958' },
+    { name: 'Team Fight Tactics', emoteId: '1407300757325348975', roleId: '1404112145821733015' },
+    { name: 'Roblox', emoteId: '1407300884756693062', roleId: '1404115005657452655' },
+    { name: 'Left 4 Dead', emoteId: '1407301029912907827', roleId: '1404115035608973382' },
+    { name: 'GTA', emoteId: '1407301156836868178', roleId: '1404115078952783922' },
+    { name: 'Overwatch', emoteId: '1407301263837630514', roleId: '1404115102680219888' },
+    { name: 'Fall Guys', emoteId: '1407301367516627035', roleId: '1404115130849034280' },
+    { name: 'Crab Game', emoteId: '1407301463838818324', roleId: '1404115159584215131' },
+    { name: 'Once Human', emoteId: '1407301586669015142', roleId: '1404115187505565747' },
+    { name: 'Fortnite', emoteId: '1407301744664379433', roleId: '1404115224214241413' },
+    { name: 'Honor of Kings', emoteId: '1407303258673778739', roleId: '1404118277088739348' },
+    { name: 'Tekken', emoteId: '1407303262536994907', roleId: '1404118222072057856' },
+    { name: 'Honkai', emoteId: '1407303265816678531', roleId: '1404118159878914170' },
+    { name: 'Rainbow Six Siege', emoteId: '1407303270074159114', roleId: '1404118099246190684' },
+    { name: 'Pokémon Unite', emoteId: '1407303275727818752', roleId: '1404118058745987072' },
+    { name: 'PUBG', emoteId: '1407303377104273429', roleId: '1404118026709635113' },
+    { name: 'Minecraft', emoteId: '1407303380468105257', roleId: '1404117972892651602' },
+    { name: 'Genshin Impact', emoteId: '1407303382707998790', roleId: '1404117936700002405' },
+    { name: 'Farlight 84', emoteId: '1407303385316724736', roleId: '1404117902763884575' },
+    { name: 'Dota 2', emoteId: '1407303389402108015', roleId: '1404117878134800414' },
+    { name: 'COD Mobile', emoteId: '1407300193304580259', roleId: '1404117846417477632' },
+    { name: 'CS:GO', emoteId: '1407303394087014400', roleId: '1404117795423125535' },
+    { name: 'Apex Legends', emoteId: '1407303485392945282', roleId: '1404115358385836162' },
+    { name: 'Among Us', emoteId: '1407303487536107613', roleId: '1404115334583161015' },
+    { name: 'Clash of Clans', emoteId: '1407303490367131739', roleId: '1404115250260742274' }
 ];
 
 // --- FUNCTIONS ---
@@ -259,6 +285,7 @@ setInterval(async () => {
         birthdayChannel.send({ embeds: [embed] });
     });
 }, 1000 * 60 * 60); // runs every hour
+
 
 
 
