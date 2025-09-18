@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const { 
@@ -22,32 +21,26 @@ const client = new Client({
   ]
 });
 
-// --- ERROR HANDLERS ---
-client.on('error', console.error);
-client.on('warn', console.warn);
-client.on('shardError', console.error);
-process.on('unhandledRejection', console.error);
-
-// --- CONFIG ---
+// --- CONFIG FROM RENDER ENV ---
 const token = process.env.BOT_TOKEN;
 if (!token) {
-  console.error("❌ No bot token found! Set BOT_TOKEN in .env or Render environment variables.");
+  console.error("❌ No bot token found! Set BOT_TOKEN in Render environment variables.");
   process.exit(1);
 }
 
-// Debug token length (remove in production)
+// Optional debug: check token length only
 console.log("Bot token length:", token.length);
-console.log("Bot token first 5 chars:", token.slice(0,5));
 
-const welcomeChannelId = '1404097606988075040';
-const reactionRolesChannelId = '1407307017621864550';
-const verifiedChannelId = '1407271197544022118';
-const verifiedRoleId = '1404107837851832410';
-const rulesChannelId = '1404104982638104789';
-const introChannelId = '1407360906739978281';
-const birthdaySetChannelId = '1407436351284052199';
-const birthdayGreetChannelId = '1407435745387610218';
-const boostChannelId = '1407352144067301458';
+// Channel & role IDs
+const welcomeChannelId = process.env.WELCOME_CHANNEL_ID || '1404097606988075040';
+const reactionRolesChannelId = process.env.ROLES_CHANNEL_ID || '1407307017621864550';
+const verifiedChannelId = process.env.VERIFY_CHANNEL_ID || '1407271197544022118';
+const verifiedRoleId = process.env.VERIFIED_ROLE_ID || '1404107837851832410';
+const rulesChannelId = process.env.RULES_CHANNEL_ID || '1404104982638104789';
+const introChannelId = process.env.INTRO_CHANNEL_ID || '1407360906739978281';
+const birthdaySetChannelId = process.env.BIRTHDAY_SET_CHANNEL_ID || '1407436351284052199';
+const birthdayGreetChannelId = process.env.BIRTHDAY_GREET_CHANNEL_ID || '1407435745387610218';
+const boostChannelId = process.env.BOOST_CHANNEL_ID || '1407352144067301458';
 const birthdayFile = './birthdays.json';
 const botMessagesFile = './botMessages.json';
 
@@ -62,24 +55,22 @@ const games = [
   { name: 'MLBB', emoteId: '1407300001830273114', roleId: '1404108965331075112' },
   { name: 'Call of Duty', emoteId: '1407300193304580259', roleId: '1404108994582417428' },
   { name: 'NBA 2K', emoteId: '1407300324863119491', roleId: '1404109015516057650' },
-  { name: 'League of Legends', emoteId: '1407300447231803494', roleId: '1404109092514955345' },
-  { name: 'Wild Rift', emoteId: '1407300567574909009', roleId: '1404109126572965958' }
-  // Add more as needed
+  { name: 'League of Legends', emoteId: '1407300447231803494', roleId: '1404109092514955345' }
+  // add more roles if needed
 ];
 
 // --- FUNCTIONS ---
 async function sendReactionRoles(channel, gamesArray, keyPrefix = 'reactionRoles') {
-  const maxReactionsPerMessage = 20;
-  const totalMessages = Math.ceil(gamesArray.length / maxReactionsPerMessage);
+  const maxReactions = 20;
+  const totalMessages = Math.ceil(gamesArray.length / maxReactions);
 
   for (let i = 0; i < totalMessages; i++) {
-    const slice = gamesArray.slice(i * maxReactionsPerMessage, (i + 1) * maxReactionsPerMessage);
+    const slice = gamesArray.slice(i * maxReactions, (i + 1) * maxReactions);
     const key = `${keyPrefix}_${i}`;
-
     let msg;
+
     if (botMessages[key]) {
-      try { msg = await channel.messages.fetch(botMessages[key]); } 
-      catch { console.log(`Previous reaction roles message not found for ${key}.`); }
+      try { msg = await channel.messages.fetch(botMessages[key]); } catch {}
     }
 
     if (!msg) {
@@ -132,17 +123,15 @@ async function sendRulesMessage(channel, key) {
 }
 
 // --- EVENTS ---
-// Welcome message
 client.on('guildMemberAdd', member => {
   const channel = member.guild.channels.cache.get(welcomeChannelId);
   if (!channel) return;
   channel.send({
-    content: `🎉 **Welcome to AdU Game!** 🎮\n\nHey ${member}! Here's how to get started:\n\n✅ **Verify yourself** in <#${verifiedChannelId}>\n📌 **Read the rules** in <#${rulesChannelId}>\n🎮 **Pick your game roles** in <#${reactionRolesChannelId}>\n\nHave fun!`,
+    content: `🎉 Welcome ${member}! Verify in <#${verifiedChannelId}>, read rules <#${rulesChannelId}>, pick roles <#${reactionRolesChannelId}>.`,
     allowedMentions: { parse: ['users'] }
   });
 });
 
-// Ready
 client.once('ready', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   const rrChannel = await client.channels.fetch(reactionRolesChannelId);
@@ -195,67 +184,9 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// Boost message
-client.on('guildMemberUpdate', (oldMember, newMember) => {
-  if (!oldMember.premiumSince && newMember.premiumSince) {
-    const boostChannel = newMember.guild.channels.cache.get(boostChannelId);
-    if (!boostChannel) return;
-    boostChannel.send(`🚀 Thank you ${newMember.user} for boosting the server! 💜`);
-  }
-});
-
-// Intro channel
-client.on('messageCreate', async message => {
-  if (message.channel.id !== introChannelId || message.author.bot) return;
-  const embed = new EmbedBuilder()
-    .setTitle('👋 New Introduction!')
-    .setDescription(`${message.author} says:\n\n${message.content}`)
-    .setColor('#00FF00')
-    .setTimestamp();
-  message.channel.send({ embeds: [embed] });
-  message.delete().catch(console.error);
-});
-
-// Birthday feature
-setInterval(async () => {
-  const today = new Date();
-  const day = today.getDate();
-  const month = today.getMonth() + 1;
-  const birthdays = JSON.parse(fs.readFileSync(birthdayFile, 'utf-8'));
-  const birthdayUsers = birthdays.filter(b => b.day === day && b.month === month);
-  if (!birthdayUsers.length) return;
-  const birthdayChannel = await client.channels.fetch(birthdayGreetChannelId);
-  if (!birthdayChannel) return;
-  birthdayUsers.forEach(user => {
-    const embed = new EmbedBuilder()
-      .setTitle('🎂 Happy Birthday! 🎉')
-      .setDescription(`Hey <@${user.id}>, everyone wishes you an amazing day! 💜`)
-      .setColor('#FFC0CB')
-      .setImage('https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif')
-      .setTimestamp();
-    birthdayChannel.send({ embeds: [embed] });
-  });
-}, 1000 * 60 * 60);
-
-client.on('messageCreate', async message => {
-  if (message.channel.id !== birthdaySetChannelId || message.author.bot) return;
-  const content = message.content.trim();
-  const [month, day] = content.split('-').map(Number);
-  if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
-    return message.reply('❌ Invalid format! Use MM-DD (e.g., 08-19).');
-  }
-  const birthdays = JSON.parse(fs.readFileSync(birthdayFile, 'utf-8'));
-  const existing = birthdays.find(b => b.id === message.author.id);
-  if (existing) { existing.month = month; existing.day = day; } 
-  else { birthdays.push({ id: message.author.id, month, day }); }
-  fs.writeFileSync(birthdayFile, JSON.stringify(birthdays, null, 2));
-  message.reply(`✅ Your birthday is set to ${month}-${day}!`);
-});
-
 // --- LOGIN ---
-console.log("Token from env:", process.env.BOT_TOKEN ? "[REDACTED]" : "NOT FOUND");
-console.log("Token length:", process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : "0");
 client.login(token);
+
 
 
 
