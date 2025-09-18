@@ -7,7 +7,7 @@ const express = require("express");
 const fs = require("fs");
 
 // -------------------- CONFIG --------------------
-const TOKEN = "MTQwNzI3NTY4NTc1OTY4MDUxMg.GY7txI.jlCd6B3qch7WuZHu_m4XeUV0sM8Qw7_VxV2PXM";
+const TOKEN = "MTQwNzI3NTY4NTc1OTY4MDUxMg.GRLdG_.yjJkGJYR4b6vLBiHFAFx2nbqJZQeY9LaC9enYA";
 const GUILD_ID = "1404097287348682842";
 
 // Channels
@@ -239,6 +239,7 @@ async function sendRulesMessage(channel, key) {
 
 // -------------------- LOGIN --------------------
 client.login(TOKEN);
+
 
 
 
