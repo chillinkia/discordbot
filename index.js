@@ -28,13 +28,25 @@ client.on('warn', info => console.warn('Discord client warning:', info));
 client.on('shardError', error => console.error('Shard error:', error));
 process.on('unhandledRejection', error => console.error('Unhandled promise rejection:', error));
 
-// --- CONFIG ---
-const token = process.env.BOT_TOKEN;
+// --- CONFIG & LOGIN ---
+let token = process.env.BOT_TOKEN;
+if (token) token = token.trim();
+
 if (!token) {
-    console.error("❌ No bot token found! Set BOT_TOKEN in .env");
+    console.error("❌ No bot token found! Set BOT_TOKEN in .env (local) or Render environment variables.");
     process.exit(1);
 }
 
+console.log("Bot token first 5 chars:", token.slice(0, 5));
+
+client.login(token)
+    .then(() => console.log(`✅ Logged in as ${client.user.tag}`))
+    .catch(err => {
+        console.error("❌ Failed to log in. Check your token!", err);
+        process.exit(1);
+    });
+
+// --- CHANNEL & ROLE CONFIG ---
 const welcomeChannelId = '1404097606988075040';
 const reactionRolesChannelId = '1407307017621864550';
 const verifiedChannelId = '1407271197544022118';
@@ -87,7 +99,6 @@ const games = [
 ];
 
 // --- FUNCTIONS ---
-// Send reaction roles (auto split if >20)
 async function sendReactionRoles(channel, gamesArray, keyPrefix = 'reactionRoles') {
     const maxReactionsPerMessage = 20;
     const totalMessages = Math.ceil(gamesArray.length / maxReactionsPerMessage);
@@ -120,7 +131,6 @@ async function sendReactionRoles(channel, gamesArray, keyPrefix = 'reactionRoles
     }
 }
 
-// Send verify button
 async function sendVerifyMessage(channel, key) {
     if (botMessages[key]) {
         try { const existingMsg = await channel.messages.fetch(botMessages[key]); if (existingMsg) return; } catch {}
@@ -132,7 +142,6 @@ async function sendVerifyMessage(channel, key) {
     fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
 }
 
-// Send rules
 async function sendRulesMessage(channel, key) {
     if (botMessages[key]) {
         try { const existingMsg = await channel.messages.fetch(botMessages[key]); if (existingMsg) return; } catch {}
@@ -153,19 +162,10 @@ async function sendRulesMessage(channel, key) {
     fs.writeFileSync(botMessagesFile, JSON.stringify(botMessages, null, 2));
 }
 
-// --- WELCOME MESSAGE ---
-client.on('guildMemberAdd', member => {
-    const channel = member.guild.channels.cache.get(welcomeChannelId);
-    if (!channel) return;
-    channel.send({
-        content: `🎉 **Welcome to AdU Game!** 🎮\n\nHey ${member}! Glad you joined us! Here's how to get started:\n\n✅ **Verify yourself** in <#${verifiedChannelId}>  \n📌 **Read the rules** in <#${rulesChannelId}>  \n🎮 **Pick your game roles** in <#${reactionRolesChannelId}>\n\nHave fun, play fair, and let's level up together! 💜`,
-        allowedMentions: { parse: ['users'] }
-    });
-});
-
 // --- ON READY ---
-client.once('clientReady', async () => {
-    console.log(`Logged in as ${client.user.tag}`);
+client.once('ready', async () => {
+    console.log(`Bot is ready: ${client.user.tag}`);
+
     const rrChannel = await client.channels.fetch(reactionRolesChannelId);
     const verifiedChannel = await client.channels.fetch(verifiedChannelId);
     const rulesChannel = await client.channels.fetch(rulesChannelId);
@@ -175,7 +175,16 @@ client.once('clientReady', async () => {
     await sendRulesMessage(rulesChannel, 'rulesMessage');
 });
 
-// --- REACTION ROLE HANDLERS ---
+// --- EVENTS ---
+client.on('guildMemberAdd', member => {
+    const channel = member.guild.channels.cache.get(welcomeChannelId);
+    if (!channel) return;
+    channel.send({
+        content: `🎉 **Welcome to AdU Game!** 🎮\n\nHey ${member}! Glad you joined us! Here's how to get started:\n\n✅ **Verify yourself** in <#${verifiedChannelId}>  \n📌 **Read the rules** in <#${rulesChannelId}>  \n🎮 **Pick your game roles** in <#${reactionRolesChannelId}>\n\nHave fun, play fair, and let's level up together! 💜`,
+        allowedMentions: { parse: ['users'] }
+    });
+});
+
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot) return;
     if (reaction.message.channel.id !== reactionRolesChannelId) return;
@@ -185,6 +194,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
     const role = reaction.message.guild.roles.cache.get(game.roleId);
     if (role && member) member.roles.add(role).catch(console.error);
 });
+
 client.on('messageReactionRemove', async (reaction, user) => {
     if (user.bot) return;
     if (reaction.message.channel.id !== reactionRolesChannelId) return;
@@ -195,7 +205,6 @@ client.on('messageReactionRemove', async (reaction, user) => {
     if (role && member) member.roles.remove(role).catch(console.error);
 });
 
-// --- VERIFICATION BUTTON ---
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isButton()) return;
     if (interaction.customId === 'verify_button') {
@@ -213,7 +222,6 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-// --- BOOST MESSAGE ---
 client.on('guildMemberUpdate', (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const boostChannel = newMember.guild.channels.cache.get(boostChannelId);
@@ -222,16 +230,30 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
     }
 });
 
-// --- INTRO CHANNEL ---
 client.on('messageCreate', async message => {
-    if (message.channel.id !== introChannelId || message.author.bot) return;
-    const embed = new EmbedBuilder()
-        .setTitle('👋 New Introduction!')
-        .setDescription(`${message.author} says:\n\n${message.content}`)
-        .setColor('#00FF00')
-        .setTimestamp();
-    message.channel.send({ embeds: [embed] });
-    message.delete().catch(console.error);
+    if (message.channel.id === introChannelId && !message.author.bot) {
+        const embed = new EmbedBuilder()
+            .setTitle('👋 New Introduction!')
+            .setDescription(`${message.author} says:\n\n${message.content}`)
+            .setColor('#00FF00')
+            .setTimestamp();
+        message.channel.send({ embeds: [embed] });
+        message.delete().catch(console.error);
+    }
+
+    if (message.channel.id === birthdaySetChannelId && !message.author.bot) {
+        const content = message.content.trim();
+        const [month, day] = content.split('-').map(Number);
+        if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
+            return message.reply('❌ Invalid format! Use MM-DD (e.g., 08-19).');
+        }
+        const birthdays = JSON.parse(fs.readFileSync(birthdayFile, 'utf-8'));
+        const existing = birthdays.find(b => b.id === message.author.id);
+        if (existing) { existing.month = month; existing.day = day; } 
+        else { birthdays.push({ id: message.author.id, month, day }); }
+        fs.writeFileSync(birthdayFile, JSON.stringify(birthdays, null, 2));
+        message.reply(`✅ Your birthday is set to ${month}-${day}!`);
+    }
 });
 
 // --- BIRTHDAY FEATURE ---
@@ -254,44 +276,6 @@ setInterval(async () => {
         birthdayChannel.send({ embeds: [embed] });
     });
 }, 1000 * 60 * 60);
-
-client.on('messageCreate', async message => {
-    if (message.channel.id !== birthdaySetChannelId || message.author.bot) return;
-    const content = message.content.trim();
-    const [month, day] = content.split('-').map(Number);
-    if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
-        return message.reply('❌ Invalid format! Use MM-DD (e.g., 08-19).');
-    }
-    const birthdays = JSON.parse(fs.readFileSync(birthdayFile, 'utf-8'));
-    const existing = birthdays.find(b => b.id === message.author.id);
-    if (existing) { existing.month = month; existing.day = day; } 
-    else { birthdays.push({ id: message.author.id, month, day }); }
-    fs.writeFileSync(birthdayFile, JSON.stringify(birthdays, null, 2));
-    message.reply(`✅ Your birthday is set to ${month}-${day}!`);
-});
-
-// --- CONFIG & LOGIN ---
-require('dotenv').config();
-
-let token = process.env.BOT_TOKEN;
-
-// Trim any accidental spaces or newlines
-if (token) token = token.trim();
-
-if (!token) {
-    console.error("❌ No bot token found! Set BOT_TOKEN in .env (local) or Render environment variables.");
-    process.exit(1);
-}
-
-// Optional: log first few chars to confirm it's being read (never log full token in public!)
-console.log("Bot token first 5 chars:", token.slice(0, 5));
-
-client.login(token)
-    .then(() => console.log(`✅ Logged in as ${client.user.tag}`))
-    .catch(err => {
-        console.error("❌ Failed to log in. Check your token!", err);
-        process.exit(1);
-    });
 
 
 
