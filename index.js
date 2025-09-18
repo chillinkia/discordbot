@@ -38,7 +38,7 @@ if (!token) {
 const welcomeChannelId = '1404097606988075040';
 const reactionRolesChannelId = '1407307017621864550';
 const verifiedChannelId = '1407271197544022118';
-const verifiedRoleId = '1407318706412978248';
+const verifiedRoleId = '1404107837851832410';
 const rulesChannelId = '1404104982638104789';
 const introChannelId = '1407360906739978281';
 const birthdaySetChannelId = '1407436351284052199';
@@ -272,6 +272,7 @@ client.on('messageCreate', async message => {
 
 // --- LOGIN ---
 client.login(token);
+
 
 
 
