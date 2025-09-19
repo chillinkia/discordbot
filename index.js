@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const fs = require('fs');
 const { 
-    Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder
+    Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder
 } = require('discord.js');
 
 // --- EXPRESS SERVER ---
@@ -20,25 +20,19 @@ const client = new Client({
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildMembers
     ],
-    partials: ['MESSAGE', 'CHANNEL', 'REACTION', 'GUILD_MEMBER', 'USER']
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember, Partials.User]
 });
 
 // --- TOKEN & LOGIN ---
-let token = process.env.BOT_TOKEN?.trim();
+const token = process.env.BOT_TOKEN?.trim();
 if (!token) {
-    console.error("❌ No bot token found! Set BOT_TOKEN in .env or Render env vars.");
+    console.error("❌ No bot token found! Set BOT_TOKEN in .env.");
     process.exit(1);
 }
 
 client.login(token)
     .then(() => console.log(`✅ Logged in as ${client.user.tag}`))
     .catch(err => { console.error("❌ Failed to log in.", err); process.exit(1); });
-
-// --- ERROR HANDLERS ---
-client.on('error', console.error);
-client.on('warn', console.warn);
-client.on('shardError', console.error);
-process.on('unhandledRejection', console.error);
 
 // --- CONFIG ---
 const config = {
@@ -98,139 +92,155 @@ const games = [
     { name: 'Clash of Clans', emoteId: '1407303490367131739', roleId: '1404115250260742274' }
 ];
 
-// --- UTILITY FUNCTIONS ---
-async function sendMessageIfNotExists(channel, key, options) {
-    if (botMessages[key]) {
-        try { 
-            const existing = await channel.messages.fetch(botMessages[key]); 
-            if (existing) return existing;
-        } catch {}
-    }
-    const msg = await channel.send(options);
+// --- HELPER FUNCTIONS ---
+async function fetchOrSendMessage(channel, key, content) {
+    try {
+        if (botMessages[key]) {
+            const msg = await channel.messages.fetch(botMessages[key]);
+            if (msg) return msg;
+        }
+    } catch { /* recreate if missing */ }
+
+    const msg = await channel.send(content);
     botMessages[key] = msg.id;
     fs.writeFileSync(config.botMessagesFile, JSON.stringify(botMessages, null, 2));
     return msg;
 }
 
-async function sendReactionRoles(channel, gamesArray, keyPrefix = 'reactionRoles') {
+// --- SELF-HEALING REACTION ROLES ---
+async function setupReactionRoles(channel) {
     const maxPerMsg = 20;
-    const total = Math.ceil(gamesArray.length / maxPerMsg);
+    const total = Math.ceil(games.length / maxPerMsg);
+
     for (let i = 0; i < total; i++) {
-        const slice = gamesArray.slice(i * maxPerMsg, (i + 1) * maxPerMsg);
+        const slice = games.slice(i * maxPerMsg, (i + 1) * maxPerMsg);
         let description = '**🎮 React to get your game role!**\n\n';
         for (const game of slice) {
             const emoji = channel.guild.emojis.cache.get(game.emoteId);
             description += emoji ? `${emoji} - **${game.name}**\n` : `❓ - **${game.name}** (emoji not found)\n`;
         }
-        const msg = await sendMessageIfNotExists(channel, `${keyPrefix}_${i}`, { content: description });
+
+        let msg;
+        try {
+            if (botMessages[`reactionRoles_${i}`]) {
+                msg = await channel.messages.fetch(botMessages[`reactionRoles_${i}`]);
+                if (!msg) throw new Error("Message not found");
+                await msg.edit({ content: description });
+            } else {
+                msg = await channel.send({ content: description });
+                botMessages[`reactionRoles_${i}`] = msg.id;
+            }
+        } catch {
+            msg = await channel.send({ content: description });
+            botMessages[`reactionRoles_${i}`] = msg.id;
+        }
+
+        fs.writeFileSync(config.botMessagesFile, JSON.stringify(botMessages, null, 2));
+
+        // Ensure reactions exist
         for (const game of slice) {
             const emoji = channel.guild.emojis.cache.get(game.emoteId);
-            if (emoji) await msg.react(emoji).catch(console.error);
+            if (emoji && !msg.reactions.cache.has(emoji.id)) {
+                await msg.react(emoji).catch(console.error);
+            }
         }
     }
 }
 
-async function sendVerifyMessage(channel, key) {
+// --- VERIFY BUTTON & RULES ---
+async function setupVerifyMessage(channel) {
     const button = new ButtonBuilder().setCustomId('verify_button').setLabel('✅ Verify').setStyle(ButtonStyle.Success);
     const row = new ActionRowBuilder().addComponents(button);
-    return sendMessageIfNotExists(channel, key, { content: 'Click the button below to verify yourself!', components: [row] });
+    return fetchOrSendMessage(channel, 'verifyMessage', { content: 'Click the button below to verify yourself!', components: [row] });
 }
 
-async function sendRulesMessage(channel, key) {
-    const rulesEmbed = new EmbedBuilder()
+async function setupRulesMessage(channel) {
+    const embed = new EmbedBuilder()
         .setTitle('📜 Server Rules – AdU Game 🎮')
+        .setColor('#6A0DAD')
         .setThumbnail('https://cdn.discordapp.com/attachments/1404667971078459412/1418078042596573265/548465965_1597541707883047_8064824227716457744_n.png')
         .setImage('https://cdn.discordapp.com/attachments/1404667971078459412/1418078041933877289/548957804_1311038923851980_8844997152190400872_n.png')
-        .setColor('#6A0DAD')
         .addFields(
-            { name: '🔒 1. All channels are locked', value: 'For Guildmeyts/Adamsonians/Casuals only. Follow the guidelines before joining any voice or chat channels.' },
-            { name: '📝 2. Registered Guildmeyts', value: 'Change your nickname to `AdUG | [name]` (Ex.: AdUG: Falcon).' },
-            { name: '✅ 3. Get Guildmeyt role', value: 'Complete the application form upon joining. Officers will verify your legitimacy.' },
-            { name: '🎁 4. Guildmeyt perks', value: 'Being a Guildmeyt grants access to exclusive channels and perks.' },
-            { name: '❓ 5. Questions or concerns', value: 'Use the Tickets channel and wait for an officer to respond.' },
+            { name: '🔒 1. All channels are locked', value: 'For Guildmeyts/Adamsonians/Casuals only.' },
+            { name: '📝 2. Registered Guildmeyts', value: 'Change your nickname to `AdUG | [name]`.' },
+            { name: '✅ 3. Get Guildmeyt role', value: 'Complete the application form upon joining.' },
+            { name: '🎁 4. Guildmeyt perks', value: 'Access to exclusive channels and perks.' },
+            { name: '❓ 5. Questions', value: 'Use the Tickets channel for help.' },
             { name: '💜 Happy Gaming!', value: '\u200B' }
         )
         .setTimestamp();
 
-    await sendMessageIfNotExists(channel, key, { embeds: [rulesEmbed] });
+    return fetchOrSendMessage(channel, 'rulesMessage', { embeds: [embed] });
 }
 
-// --- ON READY ---
+// --- READY EVENT ---
 client.once('ready', async () => {
     console.log(`Bot ready: ${client.user.tag}`);
-    const rrChannel = await client.channels.fetch(config.reactionRolesChannelId);
-    const verifiedChannel = await client.channels.fetch(config.verifiedChannelId);
-    const rulesChannel = await client.channels.fetch(config.rulesChannelId);
+    try {
+        const rrChannel = await client.channels.fetch(config.reactionRolesChannelId);
+        const verifyChannel = await client.channels.fetch(config.verifiedChannelId);
+        const rulesChannel = await client.channels.fetch(config.rulesChannelId);
 
-    await sendReactionRoles(rrChannel, games);
-    await sendVerifyMessage(verifiedChannel, 'verifyMessage');
-    await sendRulesMessage(rulesChannel, 'rulesMessage');
+        await setupReactionRoles(rrChannel);
+        await setupVerifyMessage(verifyChannel);
+        await setupRulesMessage(rulesChannel);
+    } catch (err) {
+        console.error("Error setting up messages:", err);
+    }
 });
 
-// --- EVENTS ---
+// --- AUTO-CHECK REACTION ROLES EVERY HOUR ---
+setInterval(async () => {
+    try {
+        const rrChannel = await client.channels.fetch(config.reactionRolesChannelId);
+        await setupReactionRoles(rrChannel);
+        console.log("✅ Reaction role messages checked/updated");
+    } catch (err) {
+        console.error("❌ Error auto-updating reaction roles:", err);
+    }
+}, 1000 * 60 * 60);
 
-// Welcome new members
+// --- REACTION HANDLER ---
+async function handleReaction(reaction, user, add) {
+    if (user.bot || reaction.message.channel.id !== config.reactionRolesChannelId) return;
+    if (reaction.partial) await reaction.fetch().catch(console.error);
+    const game = games.find(g => g.emoteId === (reaction.emoji.id || reaction.emoji.name));
+    if (!game) return;
+    const member = await reaction.message.guild.members.fetch(user.id).catch(() => null);
+    const role = await reaction.message.guild.roles.fetch(game.roleId).catch(() => null);
+    if (!member || !role) return;
+    add ? member.roles.add(role).catch(console.error) : member.roles.remove(role).catch(console.error);
+}
+client.on('messageReactionAdd', (r, u) => handleReaction(r, u, true));
+client.on('messageReactionRemove', (r, u) => handleReaction(r, u, false));
+
+// --- VERIFY BUTTON ---
+client.on(Events.InteractionCreate, async interaction => {
+    if (!interaction.isButton() || interaction.customId !== 'verify_button') return;
+    try {
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const role = await interaction.guild.roles.fetch(config.verifiedRoleId);
+        if (!member || !role) return interaction.reply({ content: '❌ Something went wrong.', ephemeral: true });
+
+        if (member.roles.cache.has(role.id)) {
+            await interaction.reply({ content: 'You are already verified!', ephemeral: true });
+        } else {
+            await member.roles.add(role);
+            await interaction.reply({ content: 'You are now verified! 🎉', ephemeral: true });
+        }
+    } catch (err) {
+        console.error("Verify button error:", err);
+        interaction.reply({ content: '❌ Failed to verify. Try again later.', ephemeral: true });
+    }
+});
+
+// --- WELCOME, INTRO, BIRTHDAY, BOOST ---
 client.on('guildMemberAdd', member => {
     const channel = member.guild.channels.cache.get(config.welcomeChannelId);
     if (!channel) return;
-
-    channel.send({
-        content: `🎉 **Welcome to AdU Game!** 🎮\n\nHey ${member}! Glad you joined us! Here's how to get started:\n\n✅ **Verify yourself** in <#${config.verifiedChannelId}>\n📌 **Read the rules** in <#${config.rulesChannelId}>\n🎮 **Pick your game roles** in <#${config.reactionRolesChannelId}>\n\nHave fun, play fair, and let's level up together! 💜`,
-        allowedMentions: { parse: ['users'] }
-    });
+    channel.send({ content: `🎉 **Welcome!** Hey ${member}! Verify in <#${config.verifiedChannelId}>. Read rules in <#${config.rulesChannelId}>. Pick game roles in <#${config.reactionRolesChannelId}> 💜` });
 });
 
-// Reaction roles (add/remove)
-client.on('messageReactionAdd', async (reaction, user) => {
-    if (user.bot || reaction.message.channel.id !== config.reactionRolesChannelId) return;
-    if (reaction.partial) await reaction.fetch().catch(console.error);
-
-    const game = games.find(g => g.emoteId === (reaction.emoji.id || reaction.emoji.name));
-    if (!game) return;
-
-    const member = reaction.message.guild.members.cache.get(user.id);
-    const role = reaction.message.guild.roles.cache.get(game.roleId);
-    if (role && member) member.roles.add(role).catch(console.error);
-});
-
-client.on('messageReactionRemove', async (reaction, user) => {
-    if (user.bot || reaction.message.channel.id !== config.reactionRolesChannelId) return;
-    if (reaction.partial) await reaction.fetch().catch(console.error);
-
-    const game = games.find(g => g.emoteId === (reaction.emoji.id || reaction.emoji.name));
-    if (!game) return;
-
-    const member = reaction.message.guild.members.cache.get(user.id);
-    const role = reaction.message.guild.roles.cache.get(game.roleId);
-    if (role && member) member.roles.remove(role).catch(console.error);
-});
-
-// Verification button
-client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isButton() || interaction.customId !== 'verify_button') return;
-
-    const member = interaction.guild.members.cache.get(interaction.user.id);
-    const role = interaction.guild.roles.cache.get(config.verifiedRoleId);
-    if (!member || !role) return interaction.reply({ content: 'Something went wrong.', ephemeral: true });
-
-    if (member.roles.cache.has(role.id)) {
-        await interaction.reply({ content: 'You are already verified!', ephemeral: true });
-    } else {
-        await member.roles.add(role);
-        await interaction.reply({ content: 'You are now verified! 🎉', ephemeral: true });
-    }
-});
-
-// Boost messages
-client.on('guildMemberUpdate', (oldMember, newMember) => {
-    if (!oldMember.premiumSince && newMember.premiumSince) {
-        const boostChannel = newMember.guild.channels.cache.get(config.boostChannelId);
-        if (!boostChannel) return;
-        boostChannel.send(`🚀 Thank you ${newMember.user} for boosting the server! 💜`);
-    }
-});
-
-// Introduction messages
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -255,24 +265,25 @@ client.on('messageCreate', async message => {
 
         const birthdays = JSON.parse(fs.readFileSync(config.birthdayFile, 'utf-8'));
         const existing = birthdays.find(b => b.id === message.author.id);
-        if (existing) {
-            existing.month = month;
-            existing.day = day;
-        } else {
-            birthdays.push({ id: message.author.id, month, day });
-        }
+        if (existing) { existing.month = month; existing.day = day; }
+        else { birthdays.push({ id: message.author.id, month, day }); }
 
         fs.writeFileSync(config.birthdayFile, JSON.stringify(birthdays, null, 2));
         message.reply(`✅ Your birthday is set to ${month}-${day}!`);
     }
 });
 
-// --- BIRTHDAY FEATURE ---
+client.on('guildMemberUpdate', (oldMember, newMember) => {
+    if (!oldMember.premiumSince && newMember.premiumSince) {
+        const boostChannel = newMember.guild.channels.cache.get(config.boostChannelId);
+        if (boostChannel) boostChannel.send(`🚀 Thank you ${newMember.user} for boosting the server! 💜`);
+    }
+});
+
+// --- BIRTHDAY CHECK ---
 setInterval(async () => {
     const today = new Date();
     const key = `${today.getMonth() + 1}-${today.getDate()}`;
-
-    // Reset daily
     if (!birthdaySent.lastDate || birthdaySent.lastDate !== key) {
         birthdaySent.lastDate = key;
         birthdaySent.users = [];
@@ -287,7 +298,6 @@ setInterval(async () => {
 
     for (const user of birthdayUsers) {
         if (birthdaySent.users.includes(user.id)) continue;
-
         const embed = new EmbedBuilder()
             .setTitle('🎂 Happy Birthday! 🎉')
             .setDescription(`Hey <@${user.id}>, everyone wishes you an amazing day! 💜`)
@@ -301,6 +311,7 @@ setInterval(async () => {
 
     fs.writeFileSync(config.birthdaySentFile, JSON.stringify(birthdaySent, null, 2));
 }, 1000 * 60 * 60); // checks every hour
+
 
 
 
