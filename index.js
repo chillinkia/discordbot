@@ -92,7 +92,7 @@ const games = [
     { name: 'Clash of Clans', emoteId: '1407303490367131739', roleId: '1404115250260742274' }
 ];
 
-// --- HELPER FUNCTION ---
+// --- HELPER FUNCTIONS ---
 async function fetchOrSendMessage(channel, key, content) {
     try {
         if (botMessages[key]) {
@@ -164,14 +164,15 @@ async function setupRulesMessage(channel) {
             { name: '📝 2. Registered Guildmeyts', value: 'Change your nickname to `AdUG | [name]`.' },
             { name: '✅ 3. Get Guildmeyt role', value: 'Complete the application form upon joining.' },
             { name: '🎁 4. Guildmeyt perks', value: 'Access to exclusive channels and perks.' },
-            { name: '❓ 5. Questions or concerns', value: 'Use the Tickets channel for support.' },
+            { name: '❓ 5. Questions', value: 'Use the Tickets channel and wait for response.' },
             { name: '💜 Happy Gaming!', value: '\u200B' }
         )
         .setTimestamp();
+    
     return fetchOrSendMessage(channel, 'rulesMessage', { embeds: [rulesEmbed] });
 }
 
-// --- READY EVENT ---
+// --- ON READY ---
 client.once('ready', async () => {
     console.log(`Bot ready: ${client.user.tag}`);
     const rrChannel = await client.channels.fetch(config.reactionRolesChannelId);
@@ -183,19 +184,24 @@ client.once('ready', async () => {
     await setupRulesMessage(rulesChannel);
 });
 
-// --- INTERACTION EVENTS ---
+// --- INTERACTION EVENTS (VERIFY BUTTON FIXED) ---
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isButton() || interaction.customId !== 'verify_button') return;
 
-    const member = interaction.guild.members.cache.get(interaction.user.id);
-    const role = interaction.guild.roles.cache.get(config.verifiedRoleId);
-    if (!member || !role) return interaction.reply({ content: 'Something went wrong.', ephemeral: true });
+    try {
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const role = interaction.guild.roles.cache.get(config.verifiedRoleId);
+        if (!role) return interaction.reply({ content: 'Verified role not found.', ephemeral: true });
 
-    if (member.roles.cache.has(role.id)) {
-        await interaction.reply({ content: 'You are already verified!', ephemeral: true });
-    } else {
-        await member.roles.add(role);
-        await interaction.reply({ content: 'You are now verified! 🎉', ephemeral: true });
+        if (member.roles.cache.has(role.id)) {
+            await interaction.reply({ content: 'You are already verified!', ephemeral: true });
+        } else {
+            await member.roles.add(role);
+            await interaction.reply({ content: 'You are now verified! 🎉', ephemeral: true });
+        }
+    } catch (err) {
+        console.error('Verify button error:', err);
+        interaction.reply({ content: 'Something went wrong. Please contact an admin.', ephemeral: true });
     }
 });
 
@@ -229,7 +235,7 @@ client.on('guildMemberAdd', member => {
     const channel = member.guild.channels.cache.get(config.welcomeChannelId);
     if (!channel) return;
     channel.send({
-        content: `🎉 **Welcome to AdU Game!** 🎮\n\nHey ${member}! Glad you joined us!\n✅ **Verify** in <#${config.verifiedChannelId}>\n📌 **Read the rules** in <#${config.rulesChannelId}>\n🎮 **Pick your game roles** in <#${config.reactionRolesChannelId}>\n\nHave fun! 💜`,
+        content: `🎉 **Welcome to AdU Game!** 🎮\nHey ${member}! ✅ **Verify** in <#${config.verifiedChannelId}>\n📌 **Read rules** in <#${config.rulesChannelId}>\n🎮 **Pick game roles** in <#${config.reactionRolesChannelId}>\n💜 Have fun!`,
         allowedMentions: { parse: ['users'] }
     });
 });
@@ -250,8 +256,7 @@ client.on('messageCreate', async message => {
 
     // --- BIRTHDAY SET ---
     if (message.channel.id === config.birthdaySetChannelId) {
-        const content = message.content.trim();
-        const [month, day] = content.split('-').map(Number);
+        const [month, day] = message.content.trim().split('-').map(Number);
         if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
             return message.reply('❌ Invalid format! Use MM-DD.');
         }
@@ -314,6 +319,7 @@ client.on('error', console.error);
 client.on('warn', console.warn);
 client.on('shardError', console.error);
 process.on('unhandledRejection', console.error);
+
 
 
 
