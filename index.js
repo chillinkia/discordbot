@@ -39,7 +39,7 @@ const config = {
     welcomeChannelId: '1404097606988075040',
     reactionRolesChannelId: '1407307017621864550',
     verifiedChannelId: '1407271197544022118',
-    verifiedRoleId: '1404107837851832410',
+    verifiedRoleId: '1407318706412978248',
     rulesChannelId: '1404104982638104789',
     introChannelId: '1407360906739978281',
     birthdaySetChannelId: '1407436351284052199',
@@ -311,6 +311,7 @@ setInterval(async () => {
 
     fs.writeFileSync(config.birthdaySentFile, JSON.stringify(birthdaySent, null, 2));
 }, 1000 * 60 * 60); // checks every hour
+
 
 
 
